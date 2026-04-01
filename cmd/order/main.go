@@ -3,7 +3,7 @@ package main
 import (
 	"log/slog"
 	"order/internal/config"
-	logCust "order/logCust"
+	logCustom "order/logCust"
 
 	"os"
 )
@@ -28,6 +28,26 @@ func main() {
 		slog.String("Password", cfg.Db.Password),
 		slog.String("Dbname", cfg.Db.Dbname),
 	)
+
+	// crudServise :=
+	// appliction := app.New(crudServise)
+
+	// go appliction.LaunchGRPCServer(cfg.GRPS.Port)
+
+	// // Graceful shutdown
+	// stop := make(chan os.Signal, 1)
+	// signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	// sign := <-stop
+
+	// slog.Info(
+	// 	"stopping application",
+	// 	slog.String("Signal:", sign.String()),
+	// )
+
+	// appliction.StopGRPCServer(cfg.GRPS.Port)
+
+	// slog.Info("application stop")
+
 }
 
 // Initializes logger
@@ -36,7 +56,7 @@ func setupLogger(env string) *slog.Logger {
 
 	switch env {
 	case envLocal:
-		opts := logCust.DesignHandlerOptions{
+		opts := logCustom.DesignHandlerOptions{
 			SlogOpts: slog.HandlerOptions{
 				Level:     slog.LevelDebug,
 				AddSource: true,
@@ -44,27 +64,27 @@ func setupLogger(env string) *slog.Logger {
 		}
 
 		log = slog.New(
-			logCust.NewTextDesignHandler(os.Stdout, opts),
+			logCustom.NewTextDesignHandler(os.Stdout, opts),
 		)
 	case envDev:
-		opts := logCust.DesignHandlerOptions{
+		opts := logCustom.DesignHandlerOptions{
 			SlogOpts: slog.HandlerOptions{
 				Level: slog.LevelDebug,
 			},
 		}
 
 		log = slog.New(
-			logCust.NewJSONDesignHandler(os.Stdout, opts),
+			logCustom.NewJSONDesignHandler(os.Stdout, opts),
 		)
 	case envProd:
-		opts := logCust.DesignHandlerOptions{
+		opts := logCustom.DesignHandlerOptions{
 			SlogOpts: slog.HandlerOptions{
 				Level: slog.LevelInfo,
 			},
 		}
 
 		log = slog.New(
-			logCust.NewJSONDesignHandler(os.Stdout, opts),
+			logCustom.NewJSONDesignHandler(os.Stdout, opts),
 		)
 	}
 
