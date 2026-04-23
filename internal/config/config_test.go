@@ -4,14 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
 	validConfigYAML = `
 env: "local"
-storage_path: "./storage/sso.db"
 grpc:
   port: 8080
   timeout: "1h"
@@ -23,6 +24,15 @@ database:
   user: myuser
   password: "123123"
   dbname: mydb
+cache:
+  addr: "localhost:6379"
+  password: "123123"
+  user: "user"
+  db: 1
+  max_retries: 5
+  dial_timeout: "10s"
+  timeout: "5s"
+  ttl: "300s"
 `
 )
 
@@ -36,10 +46,22 @@ func (m mockFetchCfgPathProvider) fetchConfigPath() string {
 
 func TestMustLoad_Success(t *testing.T) {
 	// Arrange
+	expectedGRPCTimeout, err := time.ParseDuration("1h")
+	require.NoError(t, err)
+
+	expectedCacheDialTimeout, err := time.ParseDuration("10s")
+	require.NoError(t, err)
+
+	expectedCacheTimeout, err := time.ParseDuration("5s")
+	require.NoError(t, err)
+
+	expectedCacheTTL, err := time.ParseDuration("300s")
+	require.NoError(t, err)
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 
-	err := os.WriteFile(configPath, []byte(validConfigYAML), 0644)
+	err = os.WriteFile(configPath, []byte(validConfigYAML), 0644)
 	if err != nil {
 		t.Fatal("failed to create test config fle:\n" + err.Error())
 	}
@@ -57,12 +79,26 @@ func TestMustLoad_Success(t *testing.T) {
 	// Assert
 	assert.Equal(t, "local", conf.Env)
 	assert.Equal(t, 8080, conf.GRPC.Port)
+	assert.Equal(t, expectedGRPCTimeout, conf.GRPC.Timeout)
 	assert.Equal(t, "/migrations", conf.MigrationsPath)
+
+	// DB config
 	assert.Equal(t, "localhost", conf.Db.Host)
 	assert.Equal(t, 5432, conf.Db.Port)
 	assert.Equal(t, "myuser", conf.Db.User)
 	assert.Equal(t, "123123", conf.Db.Password)
 	assert.Equal(t, "mydb", conf.Db.Dbname)
+
+	// cache config
+	assert.Equal(t, "localhost:6379", conf.Cache.Addr)
+	assert.Equal(t, "123123", conf.Cache.Password)
+	assert.Equal(t, "user", conf.Cache.User)
+	assert.Equal(t, 1, conf.Cache.DB)
+	assert.Equal(t, 5, conf.Cache.MaxRetries)
+	assert.Equal(t, expectedCacheDialTimeout, conf.Cache.DialTimeout)
+	assert.Equal(t, expectedCacheTimeout, conf.Cache.Timeout)
+	assert.Equal(t, expectedCacheTTL, conf.Cache.TTL)
+
 }
 
 func TestMustLoad_EmptyPath(t *testing.T) {

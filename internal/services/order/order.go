@@ -12,7 +12,15 @@ import (
 )
 
 type Order struct {
+	cache   Cache
 	storage Storage
+}
+
+type Cache interface {
+	Get(ctx context.Context, id string) (*models.Order, error)
+	Set(ctx context.Context, order *models.Order) error
+	Delete(ctx context.Context, id string)  error
+	Stop()
 }
 
 // Interfase order storage
@@ -47,9 +55,10 @@ type Storage interface {
 }
 
 // New rerturns a new instance of the Order service
-func New(storage Storage) *Order {
+func New(storage Storage, cache Cache) *Order {
 	return &Order{
 		storage: storage,
+		cache:   cache,
 	}
 }
 
@@ -58,15 +67,13 @@ func (o *Order) Create(
 	item string,
 	quan int32,
 ) (string, error) {
-	var id string
+	const op = "services.Create"
 
-	buf := make([]byte, 15)
-	_, err := rand.Read(buf)
+	id, err := GenerateId()
 	if err != nil {
-		return "", status.Error(codes.Internal, "internal err")
+		return "", err
 	}
 
-	id = base64.URLEncoding.EncodeToString(buf)[:15]
 	err = o.storage.Create(ctx, id, item, quan)
 	if err != nil {
 		slog.Debug(
@@ -78,7 +85,19 @@ func (o *Order) Create(
 		return "", status.Error(codes.Internal, "internal err")
 	}
 
-	const op = "services.Create"
+	err = o.cache.Set(ctx, &models.Order{
+		ID:       id,
+		Item:     item,
+		Quantity: quan,
+	})
+	if err != nil {
+		slog.Debug(
+			"error in cache",
+			slog.String("Serv: ", "Create"),
+			slog.String("Error", err.Error()),
+		)
+	}
+
 	slog.Info(
 		"method Create",
 		slog.String("op", op),
@@ -99,15 +118,28 @@ func (o *Order) Get(
 		slog.String("id", id),
 	)
 
-	order, err := o.storage.Get(ctx, id)
+	order, err := o.cache.Get(ctx, id)
 	if err != nil {
 		slog.Debug(
-			"error in storage layer",
+			"error in cache",
 			slog.String("Serv: ", "Get"),
 			slog.String("Error", err.Error()),
 		)
+	}
 
-		return nil, status.Error(codes.Internal, "internal err")
+	if order == nil {
+		order, err = o.storage.Get(ctx, id)
+		if err != nil {
+			slog.Debug(
+				"error in storage layer",
+				slog.String("Serv: ", "Get"),
+				slog.String("Error", err.Error()),
+			)
+
+			return nil, status.Error(codes.Internal, "internal err")
+		}
+
+		o.cache.Set(ctx, order)
 	}
 
 	return order, nil
@@ -137,6 +169,13 @@ func (o *Order) Update(
 		return nil, status.Error(codes.Internal, "internal err")
 	}
 
+	_ = o.cache.Delete(ctx, id)
+	err = o.cache.Set(ctx, &models.Order{
+		ID: id,
+		Item: item,
+		Quantity: quan,
+	})
+	
 	return order, nil
 }
 
@@ -162,6 +201,8 @@ func (o *Order) Delete(
 		return success, status.Error(codes.Internal, "internal err")
 	}
 
+	_ = o.cache.Delete(ctx, id)
+
 	return success, nil
 }
 
@@ -184,4 +225,14 @@ func (o *Order) List(ctx context.Context) ([]*models.Order, error) {
 	}
 
 	return orders, nil
+}
+
+func GenerateId() (string, error) {
+	buf := make([]byte, 15)
+	_, err := rand.Read(buf)
+	if err != nil {
+		return "", status.Error(codes.Internal, "internal err")
+	}
+
+	return base64.URLEncoding.EncodeToString(buf)[:15], nil
 }

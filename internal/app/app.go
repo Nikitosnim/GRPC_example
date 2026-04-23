@@ -6,6 +6,7 @@ import (
 	"order/internal/app/grpcapp"
 	"order/internal/config"
 	"order/internal/services/order"
+	"order/internal/storage/cache"
 	"order/internal/storage/postgresql"
 )
 
@@ -14,6 +15,7 @@ type App struct {
 	cfg     *config.Config
 	grpcApp *grpcapp.GrpcApp
 	storage order.Storage
+	cache   order.Cache
 }
 
 func New(ctx context.Context, cfg *config.Config) *App {
@@ -35,12 +37,18 @@ func (a *App) MustRun() {
 	// storage layer
 	storage, err := postgresql.New(a.ctx, connStr)
 	if err != nil {
-		panic("Error when connecting db" + err.Error())
+		panic("Error when connecting db: " + err.Error())
 	}
 	a.storage = storage
 
+	cache, err := cache.New(a.ctx, a.cfg)
+	if err != nil {
+		panic("Error when connecting redis: " + err.Error())
+	}
+	a.cache = cache
+
 	// servise layer
-	crudService := order.New(storage)
+	crudService := order.New(storage, cache)
 
 	grpcApp := grpcapp.New(crudService)
 	a.grpcApp = grpcApp
@@ -55,5 +63,9 @@ func (a *App) Stop() {
 
 	if a.storage != nil {
 		a.storage.Stop()
+	}
+
+	if a.cache != nil {
+		a.cache.Stop()
 	}
 }

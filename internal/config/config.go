@@ -13,6 +13,7 @@ type Config struct {
 	GRPC           GRPCConfig `yaml:"grpc"`
 	MigrationsPath string     `yaml:"migrations_path"`
 	Db             Database   `yaml:"database"`
+	Cache          Cache      `yaml:"cache"`
 }
 
 type GRPCConfig struct {
@@ -26,6 +27,17 @@ type Database struct {
 	User     string `yaml:"user" env-default:"my"`
 	Password string `yaml:"password" env-default:"12345"`
 	Dbname   string `yaml:"dbname" env-default:"mydb"`
+}
+
+type Cache struct {
+	Addr        string        `yaml:"addr"`
+	Password    string        `yaml:"password"`
+	User        string        `yaml:"user"`
+	DB          int           `yaml:"db"`
+	MaxRetries  int           `yaml:"max_retries"`
+	DialTimeout time.Duration `yaml:"dial_timeout"`
+	Timeout     time.Duration `yaml:"timeout"`
+	TTL time.Duration `yaml:"ttl"`
 }
 
 type fetchConfigPathProvider interface {
